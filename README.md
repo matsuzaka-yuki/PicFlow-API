@@ -49,7 +49,7 @@
 
 如有任何问题或建议，请通过以下方式联系我们：
 
-- 邮箱：[myysqil@qq.com]
+- 邮箱：[mysqil@qq.com]
 - 网站：[https://www.mysqil.com]
 
 
