@@ -115,6 +115,7 @@ $format = isset($_GET['format']) ? $_GET['format'] : 'json';
 $type = isset($_GET['type']) ? $_GET['type'] : '';
 $imageFormat = isset($_GET['img_format']) ? $_GET['img_format'] : 'auto';
 $returnType = isset($_GET['return']) ? $_GET['return'] : 'json'; // 新增返回类型参数
+$external = isset($_GET['external']) ? $_GET['external'] === 'true' || $_GET['external'] === '1' : false; // 外链模式参数
 
 // 如果没有指定type参数，则自动检测设备类型
 if (empty($type)) {
@@ -125,7 +126,13 @@ if (empty($type)) {
 $count = max(1, min(MAX_IMAGES_PER_REQUEST, $count));
 
 // 内置图片获取函数
-function getImages($type, $count) {
+function getImages($type, $count, $external = false) {
+    // 外链模式
+    if ($external) {
+        return getExternalImages($type, $count);
+    }
+    
+    // 本地模式
     $imageDir = BASE_DIR . '/images/' . $type;
     
     if (!is_dir($imageDir)) {
@@ -181,8 +188,63 @@ function getImages($type, $count) {
     ];
 }
 
+// 外链模式图片获取函数
+function getExternalImages($type, $count) {
+    $linkFile = BASE_DIR . '/' . $type . '.txt';
+    
+    if (!file_exists($linkFile)) {
+        return [
+            'success' => false,
+            'message' => '外链文件不存在: ' . $type . '.txt',
+            'images' => [],
+            'total_available' => 0
+        ];
+    }
+    
+    // 读取链接文件
+    $links = file($linkFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    $images = [];
+    
+    foreach ($links as $index => $link) {
+        $link = trim($link);
+        if (empty($link)) continue;
+        
+        // 生成基于索引的文件名
+        $fileName = 'external_' . ($index + 1);
+        
+        $images[] = [
+            'filename' => $fileName,
+            'path' => '', // 外链模式没有本地路径
+            'url' => $link,
+            'extension' => 'external', // 标记为外链
+            'type' => $type,
+            'size' => 0, // 外链模式无法获取文件大小
+            'external' => true
+        ];
+    }
+    
+    if (empty($images)) {
+        return [
+            'success' => false,
+            'message' => '外链文件中没有有效的链接',
+            'images' => [],
+            'total_available' => 0
+        ];
+    }
+    
+    // 随机选择图片
+    shuffle($images);
+    $selectedImages = array_slice($images, 0, $count);
+    
+    return [
+        'success' => true,
+        'images' => $selectedImages,
+        'total_available' => count($images)
+    ];
+}
+
 // 使用内置函数获取图片
-$result = getImages($type, $count);
+$result = getImages($type, $count, $external);
 
 if (!$result['success']) {
     $response = [
@@ -224,33 +286,43 @@ if ($count == 1 && $returnType === 'redirect') {
     exit;
 }
 
-// 智能格式处理
-if ($imageFormat === 'auto') {
-    $optimalFormat = detectOptimalFormat();
-    
-    // 为每个图片应用智能格式
-    foreach ($selectedImages as &$image) {
-        $convertedImage = getConvertedImageUrl($image, $optimalFormat);
-        $image['url'] = $convertedImage['url'];
-        $image['format'] = $convertedImage['format'];
-        $image['converted'] = $convertedImage['converted'];
-        $image['optimal_format'] = $optimalFormat;
-        if ($convertedImage['size'] > 0) {
-            $image['size'] = $convertedImage['size'];
+// 智能格式处理（外链模式不支持格式转换）
+if (!$external) {
+    if ($imageFormat === 'auto') {
+        $optimalFormat = detectOptimalFormat();
+        
+        // 为每个图片应用智能格式
+        foreach ($selectedImages as &$image) {
+            $convertedImage = getConvertedImageUrl($image, $optimalFormat);
+            $image['url'] = $convertedImage['url'];
+            $image['format'] = $convertedImage['format'];
+            $image['converted'] = $convertedImage['converted'];
+            $image['optimal_format'] = $optimalFormat;
+            if ($convertedImage['size'] > 0) {
+                $image['size'] = $convertedImage['size'];
+            }
         }
+        unset($image); // 清除引用
+    } elseif ($imageFormat !== 'original' && in_array($imageFormat, ['jpeg', 'webp', 'avif'])) {
+        // 指定格式处理
+        foreach ($selectedImages as &$image) {
+            $convertedImage = getConvertedImageUrl($image, $imageFormat);
+            $image['url'] = $convertedImage['url'];
+            $image['format'] = $convertedImage['format'];
+            $image['converted'] = $convertedImage['converted'];
+            $image['requested_format'] = $imageFormat;
+            if ($convertedImage['size'] > 0) {
+                $image['size'] = $convertedImage['size'];
+            }
+        }
+        unset($image); // 清除引用
     }
-    unset($image); // 清除引用
-} elseif ($imageFormat !== 'original' && in_array($imageFormat, ['jpeg', 'webp', 'avif'])) {
-    // 指定格式处理
+} else {
+    // 外链模式：为每个图片添加外链标记
     foreach ($selectedImages as &$image) {
-        $convertedImage = getConvertedImageUrl($image, $imageFormat);
-        $image['url'] = $convertedImage['url'];
-        $image['format'] = $convertedImage['format'];
-        $image['converted'] = $convertedImage['converted'];
-        $image['requested_format'] = $imageFormat;
-        if ($convertedImage['size'] > 0) {
-            $image['size'] = $convertedImage['size'];
-        }
+        $image['format'] = 'external';
+        $image['converted'] = false;
+        $image['external_mode'] = true;
     }
     unset($image); // 清除引用
 }
@@ -273,6 +345,7 @@ if ($format === 'text' || $format === 'url') {
         'api_version' => API_VERSION,
         'image_format' => $imageFormat,
         'return_type' => $returnType,
+        'external_mode' => $external,
         'user_agent' => isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '',
         'images' => $selectedImages
     ];
