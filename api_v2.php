@@ -6,7 +6,7 @@ define('SITE_URL', 'http' . (isset($_SERVER['HTTPS']) ? 's' : '') . '://' . $_SE
 define('DEFAULT_IMAGE_COUNT', 1);
 define('MAX_IMAGES_PER_REQUEST', 50);
 define('CURRENT_IMAGE_MODE', 'random');
-define('API_VERSION', '2.0');
+define('API_VERSION', '3.0');
 
 // 内置访问权限检查函数
 function checkAccess() {
@@ -126,52 +126,80 @@ if (empty($type)) {
 $count = max(1, min(MAX_IMAGES_PER_REQUEST, $count));
 
 // 内置图片获取函数
-function getImages($type, $count, $external = false) {
+function getImages($type, $count, $external = false, $imageFormat = 'auto') {
     // 外链模式
     if ($external) {
         return getExternalImages($type, $count);
-    }
-    
-    // 本地模式
-    $imageDir = BASE_DIR . '/images/' . $type;
-    
-    if (!is_dir($imageDir)) {
-        return [
-            'success' => false,
-            'message' => '图片目录不存在: ' . $type,
-            'images' => [],
-            'total_available' => 0
-        ];
     }
     
     // 获取所有图片文件
     $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif'];
     $images = [];
     
-    $files = scandir($imageDir);
-    foreach ($files as $file) {
-        if ($file === '.' || $file === '..') continue;
+    // 只扫描 converted 目录
+    $convertedBaseDir = BASE_DIR . '/converted/' . $type;
+    if (is_dir($convertedBaseDir)) {
+        // 如果没有指定格式或者是auto，扫描所有格式
+        $formats = ['jpeg', 'webp', 'avif']; // 支持的转换格式
         
-        $filePath = $imageDir . '/' . $file;
-        if (is_file($filePath)) {
-            $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
-            if (in_array($extension, $allowedExtensions)) {
-                $images[] = [
-                    'filename' => $file,
-                    'path' => $filePath,
-                    'url' => SITE_URL . '/images/' . $type . '/' . $file,
-                    'extension' => $extension,
-                    'type' => $type,
-                    'size' => filesize($filePath)
-                ];
+        foreach ($formats as $format) {
+            $formatDir = $convertedBaseDir . '/' . $format;
+            if (is_dir($formatDir)) {
+                $files = scandir($formatDir);
+                foreach ($files as $file) {
+                    if ($file === '.' || $file === '..') continue;
+                    
+                    $filePath = $formatDir . '/' . $file;
+                    if (is_file($filePath)) {
+                        $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+                        if (in_array($extension, $allowedExtensions)) {
+                            $images[] = [
+                                'filename' => $file,
+                                'path' => $filePath,
+                                'url' => SITE_URL . '/converted/' . $type . '/' . $format . '/' . $file,
+                                'extension' => $extension,
+                                'type' => $type,
+                                'size' => filesize($filePath),
+                                'source' => 'converted',
+                                'format' => $format
+                            ];
+                        }
+                    }
+                }
             }
         }
     }
     
     if (empty($images)) {
+        $message = '没有找到转换后的图片，请检查 converted 目录';
         return [
             'success' => false,
-            'message' => '没有找到可用的图片',
+            'message' => $message,
+            'images' => [],
+            'total_available' => 0
+        ];
+    }
+    
+    // 根据 imageFormat 参数过滤图片
+    if ($imageFormat !== 'auto' && in_array($imageFormat, ['jpeg', 'webp', 'avif'])) {
+        // 过滤出指定格式的图片
+        $filteredImages = [];
+        foreach ($images as $image) {
+            if (isset($image['format']) && $image['format'] === $imageFormat) {
+                $filteredImages[] = $image;
+            }
+        }
+        $images = $filteredImages;
+    }
+    
+    if (empty($images)) {
+        $message = '没有找到转换后的图片，请检查 converted 目录';
+        if ($imageFormat !== 'auto') {
+            $message = "没有找到 {$imageFormat} 格式的图片";
+        }
+        return [
+            'success' => false,
+            'message' => $message,
             'images' => [],
             'total_available' => 0
         ];
@@ -244,7 +272,7 @@ function getExternalImages($type, $count) {
 }
 
 // 使用内置函数获取图片
-$result = getImages($type, $count, $external);
+$result = getImages($type, $count, $external, $imageFormat);
 
 if (!$result['success']) {
     $response = [

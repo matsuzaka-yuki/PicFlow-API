@@ -1,62 +1,108 @@
-# PicFlow API文档 (API v2.0)
+# PicFlow API v2.0 文档
 
-## 概述
-
-这是一个独立的PHP图片API，用于随机获取游戏图片。支持PC端和移动端图片，具备智能格式检测和图片转换功能。
+PicFlow API v2.0 是一个智能图片服务API，支持多种图片格式转换、设备自适应和外链模式。
 
 ## 基本信息
 
 - **API版本**: 2.0
-- **协议**: HTTP/HTTPS
-- **响应格式**: JSON (默认) / Text / URL重定向
-- **请求方法**: GET
+- **请求方式**: GET
+- **响应格式**: JSON (默认) / TEXT / 重定向
 - **字符编码**: UTF-8
 
-## 接口地址
+## 核心特性
+
+- 🎯 **智能格式检测**: 根据用户浏览器自动选择最优图片格式 (AVIF/WebP/JPEG)
+- 📱 **设备自适应**: 自动检测移动端/桌面端，返回对应尺寸图片
+- 🔄 **多格式支持**: 支持 JPEG、WebP、AVIF 等现代图片格式
+- 🌐 **外链模式**: 支持从外部链接获取图片
+- ⚡ **高性能**: 只处理转换后的优化图片，提升响应速度
+
+## 请求地址
 
 ```
 GET /api_v2.php
 ```
 
+## 请求参数
 
+### 基础参数
 
-## 请求参数(本地模式),如果需要使用外链方案请看EXTERNAL_MODE.md
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `count` | int | 1 | 返回图片数量，范围: 1-50 |
+| `type` | string | auto | 设备类型: `pc`(桌面端) / `pe`(移动端) / auto(自动检测) |
+| `format` | string | json | 响应格式: `json` / `text` / `url` |
+| `return` | string | json | 返回类型: `json` / `redirect`(直接重定向到图片) |
 
-| 参数名 | 类型 | 必填 | 默认值 | 说明 |
-|--------|------|------|--------|------|
-| `count` | int | 否 | 1 | 返回图片数量，范围：1-50 |
-| `type` | string | 否 | 自动检测 | 设备类型：`pc` 或 `pe` |
-| `format` | string | 否 | json | 返回格式：`json`、`text`、`url` |
-| `img_format` | string | 否 | auto | 图片格式：`auto`、`original`、`jpeg`、`webp`、`avif` |
-| `return` | string | 否 | json | 返回类型：`json` 或 `redirect` |
+### 图片格式参数
 
-### 参数详细说明
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `img_format` | string | auto | 图片格式: `auto`(智能选择) / `jpeg` / `webp` / `avif` |
 
-#### `count` - 图片数量
-- 最小值：1
-- 最大值：50
-- 超出范围会自动调整到边界值
+### 外链模式参数
 
-#### `type` - 设备类型
-- `pc`: PC端图片（横屏）
-- `pe`: 移动端图片（竖屏）
-- 不指定时会根据User-Agent自动检测
+| 参数名 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `external` | boolean | false | 外链模式: `true` / `false` / `1` / `0` |
 
-#### `format` - 返回格式
-- `json`: 返回JSON格式数据（默认）
-- `text`: 返回纯文本URL列表
-- `url`: 同text格式
+## 使用模式
 
-#### `img_format` - 图片格式
-- `auto`: 智能检测最优格式（推荐）
-- `original`: 返回原始格式
-- `jpeg`: 强制JPEG格式
-- `webp`: 强制WebP格式
-- `avif`: 强制AVIF格式
+### 1. 本地模式 (默认)
 
-#### `return` - 返回类型
-- `json`: 返回JSON数据
-- `redirect`: 直接重定向到图片（仅当count=1时有效）
+本地模式从服务器的 `converted` 目录获取已转换的优化图片。
+
+#### 目录结构
+```
+converted/
+├── pc/          # 桌面端图片
+│   ├── jpeg/    # JPEG格式
+│   ├── webp/    # WebP格式
+│   └── avif/    # AVIF格式
+└── pe/          # 移动端图片
+    ├── jpeg/    # JPEG格式
+    ├── webp/    # WebP格式
+    └── avif/    # AVIF格式
+```
+
+#### 请求示例
+
+```bash
+# 获取1张自动格式的图片
+GET /api_v2.php
+
+# 获取5张桌面端WebP格式图片
+GET /api_v2.php?count=5&type=pc&img_format=webp
+
+# 获取移动端图片并直接重定向
+GET /api_v2.php?type=pe&return=redirect
+
+# 获取AVIF格式图片
+GET /api_v2.php?img_format=avif&count=3
+```
+
+### 2. 外链模式
+
+外链模式从预配置的外部链接获取图片，适用于CDN或第三方图片服务。
+
+#### 配置文件
+- `pc.txt`: 桌面端图片链接列表
+- `pe.txt`: 移动端图片链接列表
+
+每行一个图片URL，支持任何可访问的图片链接。
+
+#### 请求示例
+
+```bash
+# 启用外链模式获取图片
+GET /api_v2.php?external=true
+
+# 外链模式获取5张移动端图片
+GET /api_v2.php?external=true&type=pe&count=5
+
+# 外链模式直接重定向
+GET /api_v2.php?external=1&return=redirect
+```
 
 ## 响应格式
 
@@ -64,212 +110,219 @@ GET /api_v2.php
 
 ```json
 {
-    "success": true,
-    "count": 1,
-    "type": "pc",
-    "mode": "random",
-    "total_available": 150,
-    "timestamp": 1640995200,
-    "api_version": "2.0",
-    "image_format": "auto",
-    "return_type": "json",
-    "detected_format": "webp",
-    "user_agent": "Mozilla/5.0...",
-    "images": [
-        {
-            "filename": "game_image_001.jpg",
-            "path": "/path/to/images/pc/game_image_001.jpg",
-            "url": "https://example.com/images/pc/game_image_001.jpg",
-            "extension": "jpg",
-            "type": "pc",
-            "size": 245760,
-            "format": "webp",
-            "converted": true,
-            "optimal_format": "webp"
-        }
-    ]
+  "success": true,
+  "count": 2,
+  "type": "pc",
+  "mode": "random",
+  "total_available": 150,
+  "timestamp": 1640995200,
+  "api_version": "2.0",
+  "image_format": "auto",
+  "return_type": "json",
+  "external_mode": false,
+  "detected_format": "webp",
+  "user_agent": "Mozilla/5.0...",
+  "images": [
+    {
+      "filename": "image1.webp",
+      "path": "/path/to/converted/pc/webp/image1.webp",
+      "url": "https://example.com/converted/pc/webp/image1.webp",
+      "extension": "webp",
+      "type": "pc",
+      "size": 45678,
+      "source": "converted",
+      "format": "webp"
+    },
+    {
+      "filename": "image2.webp",
+      "path": "/path/to/converted/pc/webp/image2.webp",
+      "url": "https://example.com/converted/pc/webp/image2.webp",
+      "extension": "webp",
+      "type": "pc",
+      "size": 52341,
+      "source": "converted",
+      "format": "webp"
+    }
+  ]
 }
 ```
 
-### Text/URL响应
-
-```
-https://example.com/images/pc/game_image_001.jpg
-https://example.com/images/pc/game_image_002.jpg
-```
-
-### 错误响应
+### 外链模式响应
 
 ```json
 {
-    "success": false,
-    "message": "没有找到可用的图片",
-    "count": 0,
-    "images": []
+  "success": true,
+  "count": 1,
+  "type": "pc",
+  "external_mode": true,
+  "images": [
+    {
+      "filename": "external_1",
+      "path": "",
+      "url": "https://cdn.example.com/image1.jpg",
+      "extension": "external",
+      "type": "pc",
+      "size": 0,
+      "external": true,
+      "format": "external",
+      "converted": false,
+      "external_mode": true
+    }
+  ]
 }
+```
+
+### TEXT响应
+
+当 `format=text` 或 `format=url` 时，返回纯文本格式：
+
+```
+https://example.com/converted/pc/webp/image1.webp
+https://example.com/converted/pc/webp/image2.webp
+```
+
+### 重定向响应
+
+当 `return=redirect` 且 `count=1` 时，直接重定向到图片URL：
+
+```
+HTTP/1.1 302 Found
+Location: https://example.com/converted/pc/webp/image1.webp
 ```
 
 ## 智能格式检测
 
-API会根据客户端User-Agent自动选择最优图片格式：
+API会根据用户的浏览器User-Agent自动检测支持的最优图片格式：
 
-### AVIF格式支持
-- Chrome 85+
-- Firefox 93+
+### 支持的格式优先级
 
-### WebP格式支持
-- Chrome (所有版本)
-- Opera (所有版本)
-- Edge (所有版本)
-- Firefox (所有版本)
-- Safari 14+
+1. **AVIF** - 最新格式，文件最小
+   - Chrome 85+
+   - Firefox 93+
 
-### 默认格式
-- 不支持现代格式的浏览器返回JPEG
+2. **WebP** - 广泛支持，优秀压缩
+   - Chrome (所有版本)
+   - Firefox
+   - Edge
+   - Safari 14+
+
+3. **JPEG** - 兜底格式，最佳兼容性
+   - 所有浏览器
+
+### 格式检测示例
+
+```bash
+# 自动检测最优格式
+GET /api_v2.php?img_format=auto
+
+# 强制指定格式
+GET /api_v2.php?img_format=webp
+```
+
+## 错误处理
+
+### 错误响应格式
+
+```json
+{
+  "success": false,
+  "message": "错误描述",
+  "count": 0,
+  "images": []
+}
+```
+
+### 常见错误
+
+| 错误信息 | 原因 | 解决方案 |
+|----------|------|----------|
+| `没有找到转换后的图片，请检查 converted 目录` | converted目录为空或不存在 | 确保converted目录存在且包含图片文件 |
+| `没有找到 webp 格式的图片` | 指定格式的图片不存在 | 检查对应格式目录是否有图片 |
+| `外链文件不存在: pc.txt` | 外链模式配置文件缺失 | 创建对应的.txt配置文件 |
+| `外链文件中没有有效的链接` | 配置文件为空或格式错误 | 检查.txt文件内容格式 |
+
+## 性能优化建议
+
+### 1. 图片预处理
+- 提前将图片转换为多种格式 (JPEG/WebP/AVIF)
+- 按设备类型优化图片尺寸
+- 使用适当的压缩质量
+
+### 2. 缓存策略
+- 启用浏览器缓存
+- 使用CDN加速图片分发
+- 考虑服务端缓存API响应
+
+### 3. 外链模式优化
+- 使用高性能的图片CDN
+- 定期检查外链有效性
+- 合理配置链接数量
 
 ## 使用示例
 
-### 1. 获取单张PC图片（JSON格式）
-```bash
-curl "https://example.com/api_v2.php?type=pc&count=1"
-```
+### JavaScript调用
 
-### 2. 获取多张移动端图片
-```bash
-curl "https://example.com/api_v2.php?type=pe&count=5"
-```
-
-### 3. 直接重定向到图片
-```bash
-curl -L "https://example.com/api_v2.php?count=1&return=redirect"
-```
-
-### 4. 获取纯文本URL列表
-```bash
-curl "https://example.com/api_v2.php?count=3&format=text"
-```
-
-### 5. 强制指定图片格式
-```bash
-curl "https://example.com/api_v2.php?img_format=webp&count=1"
-```
-
-### 6. 自动检测设备类型和最优格式
-```bash
-curl "https://example.com/api_v2.php?count=1&img_format=auto"
-```
-
-## JavaScript调用示例
-
-### 基础调用
 ```javascript
-fetch('/api_v2.php?count=1&type=pc')
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            console.log('图片URL:', data.images[0].url);
-        }
-    });
+// 获取随机图片
+fetch('/api_v2.php?count=5&img_format=webp')
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      data.images.forEach(img => {
+        console.log(img.url);
+      });
+    }
+  });
+
+// 直接使用图片URL
+const imgUrl = '/api_v2.php?return=redirect&img_format=auto';
+document.getElementById('myImg').src = imgUrl;
 ```
 
-### 使用async/await
-```javascript
-async function getRandomImage() {
-    try {
-        const response = await fetch('/api_v2.php?count=1&img_format=auto');
-        const data = await response.json();
-        
-        if (data.success) {
-            return data.images[0].url;
-        }
-    } catch (error) {
-        console.error('获取图片失败:', error);
+### PHP调用
+
+```php
+// 获取API数据
+$response = file_get_contents('http://yoursite.com/api_v2.php?count=3&type=pc');
+$data = json_decode($response, true);
+
+if ($data['success']) {
+    foreach ($data['images'] as $image) {
+        echo '<img src="' . $image['url'] . '" alt="' . $image['filename'] . '">';
     }
 }
 ```
 
-### jQuery示例
-```javascript
-$.getJSON('/api_v2.php', {
-    count: 1,
-    type: 'pc',
-    img_format: 'auto'
-}, function(data) {
-    if (data.success) {
-        $('#image').attr('src', data.images[0].url);
-    }
-});
+### HTML直接使用
+
+```html
+<!-- 直接重定向到图片 -->
+<img src="/api_v2.php?return=redirect&img_format=webp" alt="Random Image">
+
+<!-- 背景图片 -->
+<div style="background-image: url('/api_v2.php?return=redirect&type=pc')"></div>
 ```
 
-## 目录结构要求
-
-API需要以下目录结构：
-
-```
-项目根目录/
-├── api_v2.php          # API文件
-├── images/             # 原始图片目录
-│   ├── pc/            # PC端图片
-│   └── pe/            # 移动端图片
-└── converted/         # 转换后图片目录（可选）
-    ├── pc/
-    │   ├── jpeg/
-    │   ├── webp/
-    │   └── avif/
-    └── pe/
-        ├── jpeg/
-        ├── webp/
-        └── avif/
-```
-
-## 支持的图片格式
-
-### 输入格式（原始图片）
-- JPEG (.jpg, .jpeg)
-- PNG (.png)
-- GIF (.gif)
-- WebP (.webp)
-- AVIF (.avif)
-
-### 输出格式（转换后）
-- JPEG - 兼容性最好
-- WebP - 体积小，广泛支持
-- AVIF - 最新格式，体积最小
-
-## 性能优化建议
-
-1. **使用CDN**: 将图片文件部署到CDN以提高访问速度
-2. **启用缓存**: 在Web服务器层面启用静态文件缓存
-3. **图片预处理**: 预先转换图片到不同格式以减少实时处理
-4. **压缩优化**: 对原始图片进行适当压缩
-
-## 错误代码
-
-| 错误信息 | 说明 | 解决方案 |
-|----------|------|----------|
-| "图片目录不存在" | 指定类型的图片目录不存在 | 检查images/pc或images/pe目录 |
-| "没有找到可用的图片" | 目录中没有支持的图片文件 | 添加图片文件到对应目录 |
-
-## 安全注意事项
-
-1. **路径遍历防护**: API已内置路径安全检查
-2. **文件类型验证**: 只允许指定的图片格式
-3. **请求频率限制**: 建议在Web服务器层面设置请求频率限制
-4. **CORS配置**: 已配置允许跨域访问
-
-## 更新日志
+## 版本更新日志
 
 ### v2.0
-- 移除外部配置文件依赖
-- 添加智能格式检测
-- 支持AVIF格式
-- 优化移动端检测
-- 添加重定向模式
+- ✨ 新增智能格式检测功能
+- ✨ 支持AVIF格式
+- ✨ 优化目录扫描逻辑，只处理converted目录
+- ✨ 改进外链模式支持
+- 🔧 移除original参数，专注转换后图片
+- 🔧 优化错误提示信息
+- 🔧 改进性能和响应速度
+
+### v1.x
+- 基础图片API功能
+- 支持JPEG和WebP格式
+- 基本的设备检测
 
 ## 技术支持
 
-如有问题或建议，请检查：
-1. 目录结构是否正确
-2. 图片文件是否存在
-3. 文件权限是否正确
-4. PHP版本是否兼容（推荐PHP 7.4+）
+如有问题或建议，请联系技术支持团队。
+
+---
+
+**PicFlow API v2.0** - 让图片服务更智能、更高效！
